@@ -1,17 +1,65 @@
+import logging
+
+
 from squash.exceptions import InvalidCommand
-from squash.storage.bisect_storage import BisectStorageEngine
 
-
-def bisect_storage_factory():
-    return BisectStorageEngine()
+logger = logging.getLogger(__name__)
 
 
 class CommandHandler:
-    VALID_COMMANDS = ('',)
+    """
+    ZADD <key> <score> <member> (https://redis.io/commands/zadd)
+    ZCARD <key> (https://redis.io/commands/zcard)
+    ZREM <key> <member> (https://redis.io/commands/zrem)
+    ZRANGE <key> <start> <stop> (https://redis.io/commands/zrange)
+    ZRANGEBYSCORE <key> <min> <max> (https://redis.io/commands/zrangebyscore)
+    """
+    VALID_COMMANDS = ('ZADD', 'ZCARD', 'ZREM', 'ZRANGE', 'ZRANGEBYSCORE')
 
-    def __init__(self, storage_factory=bisect_storage_factory):
-        self._storage = storage_factory()
+    def __init__(self, connection, storage):
+        self._connection = connection
+        self._storage = storage
 
-    def handle_command(self, cmd, key, *args):
+    async def handle_client(self):
+        while True:
+            data = await self._connection.read_command_data()
+            if not data:
+                break
+
+            logger.debug("RECEIVED DATA: {}".format(data))
+            await self.handle_command(*data)
+
+    async def handle_command(self, cmd, key, *args):
         if cmd not in self.VALID_COMMANDS:
             raise InvalidCommand(cmd)
+
+        try:
+            await getattr(self, cmd)(key, *args)
+        except Exception as error:
+            logger.exception(error)
+            await self._connection.write_error("SERVER ERROR")
+
+    async def ZADD(self, key, *args):
+        pass
+
+    async def ZCARD(self, key):
+        result = self._storage.zcard(key)
+        await self._connection.write_int(result)
+
+    async def ZREM(self, key, *members):
+        result = self._storage.zrem(key, *members)
+        await self._connection.write_int(result)
+
+    async def ZRANGE(self, key, start, stop, withscores=None):
+        result = self._storage.zrange(key, start, stop, withscores)
+        await self._connection.write_array(result)
+
+    async def ZRANGEBYSCORE(self, key, score_min, score_max, withscores=None):
+        # TODO:
+        # - handling ( in score_min/score_max
+        # - handling -inf/+inf in score_min/score_max
+        # - add LIMIT
+
+        result = self._storage.zrangebyscore(
+            key, score_min, score_max, withscores)
+        await self._connection.write_array(result)

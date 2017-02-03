@@ -1,45 +1,38 @@
 import asyncio
 from asyncio.streams import start_server
 
+from squash.connection import Connection
 from squash.handler import CommandHandler
-from squash.parser import CommandParser
+from squash.storage.bisect_storage import bisect_storage_factory
 
 
 class SquashServer:
 
-    def __init__(self):
-        self._handler = CommandHandler()
+    def __init__(self, storage_factory=bisect_storage_factory):
+        self._storage = storage_factory()
         self._server = None
-        self._clients = {}  # task -> (reader, writer)
+        self._clients = {}
 
     def _accept_client(self, client_reader, client_writer):
-        task = asyncio.Task(self._handle_client(client_reader, client_writer))
-        self._clients[task] = (client_reader, client_writer)
+        connection = Connection(client_reader, client_writer)
+        task = asyncio.Task(self._handle_client(connection))
+        self._clients[task] = connection
 
-        def client_done(task):
-            del self._clients[task]
-
+        def client_done(finished_task):
+            del self._clients[finished_task]
         task.add_done_callback(client_done)
 
-    async def _handle_client(self, client_reader, client_writer):
-        parser = CommandParser(client_reader)
-        while True:
-            data = await parser.parse_command()
-            if not data:
-                break
-
-            print(data)
-            response = self._handler.handle_command(*data)
-            # client_writer.write("{}\r\n".format(response).encode())
-            client_writer.write(b"+OK\r\n")
-            await client_writer.drain()
+    async def _handle_client(self, connection):
+        handler = CommandHandler(connection, self._storage)
+        await handler.handle_client()
 
     async def start(self, host, port):
         self._server = await start_server(self._accept_client, host, port)
 
     async def stop(self):
-        for task in self._clients.keys():
+        for task, connection in self._clients.items():
             if not task.done():
+                await connection.write_error("SUDDEN STOP")
                 task.cancel()
 
         if self._server is not None:
@@ -61,6 +54,7 @@ def main():
         loop.run_until_complete(server.stop())
     finally:
         loop.close()
+
 
 if __name__ == '__main__':
     main()

@@ -22,9 +22,13 @@ class BisectStorageEngine(BaseStorageEngine):
         scores[member] = score
 
     def zcard(self, key):
-        return len(self._data[key])
+        data = self._data.get(key)
+        if data is None:
+            return 0
 
-    def zrem(self, key, member):
+        return len(data)
+
+    def zrem(self, key, *member):
         data = self._data[key]
         scores = self._scores[key]
 
@@ -34,11 +38,21 @@ class BisectStorageEngine(BaseStorageEngine):
         data.pop(index)
         del scores[member]
 
-    def zrange(self, key, start, stop):
-        return (i[1] for i in self._data[key][start:stop])
+    def zrange(self, key, start, stop, withscores=None):
+        stop += 1  # inclusive ranges
+        if withscores is None:
+            return (i[1] for i in self._data[key][start:stop])
+        return ((i[1], i[0]) for i in self._data[key][start:stop])
 
-    def zrangebyscore(self, key, score_min, score_max):
+    def zrangebyscore(self, key, score_min, score_max, withscores=None):
         data = self._data[key]
         start = bisect_left(data, (score_min,))
-        stop = bisect_left(data, (score_max,))
-        return (i[1] for i in data[start:stop])
+        stop = bisect_right(data, (score_max,))
+
+        if withscores is None:
+            return (i[1] for i in data[start:stop])
+        return ((i[1], i[0]) for i in data[start:stop])
+
+
+def bisect_storage_factory():
+    return BisectStorageEngine()
