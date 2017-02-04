@@ -45,7 +45,7 @@ class SquashServer:
 
 def get_args():
     parser = OptionParser(usage="usage: %prog [options]", add_help_option=False)
-    parser.add_option("-h", "--host", help="Server host", default="127.0.0.1")
+    parser.add_option("-h", "--host", help="Server host", default="0.0.0.0")
     parser.add_option("-p", "--port", help="Server port", default=6379)
     parser.add_option("-v", "--verbose", help="Run in verbose mode",
                       action="store_true")
@@ -57,7 +57,6 @@ def get_args():
 
 def main():
     args = get_args()
-    print(args)
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
 

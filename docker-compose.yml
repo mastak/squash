@@ -1,0 +1,17 @@
+version: '2'
+
+services:
+
+  squash:
+    build: .
+    container_name: squash
+    volumes:
+      - ./:/usr/src/squash
+    ports:
+      - "6379:6379"
+
+  redis:
+    image: redis
+    command: redis-cli -h squash
+    depends_on:
+      - squash
