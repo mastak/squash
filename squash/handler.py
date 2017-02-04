@@ -68,7 +68,7 @@ class CommandHandler:
         if el_count % 2 or not el_count:
             raise InvalidArguments('zadd', args)
 
-        result = self._storage.zadd(key, nx, xx, ch, incr, args[start_idx:])
+        result = self._storage.zadd(key, nx, xx, ch, incr, *args[start_idx:])
         await self._connection.write_string(result)
 
     async def ZCARD(self, key):

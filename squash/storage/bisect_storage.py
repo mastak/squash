@@ -46,7 +46,7 @@ class BisectStorageEngine(BaseStorageEngine):
             raise BaseError(
                 "XX and NX options at the same time are not compatible")
 
-        if incr and len(items) > 1:
+        if incr and len(items) > 2:
             raise BaseError(
                 "INCR option supports a single increment-element pair")
 
@@ -54,7 +54,7 @@ class BisectStorageEngine(BaseStorageEngine):
         scores = self._scores[key]
 
         saved = updated = 0
-        for score, member in items:
+        for score, member in zip(items[0::2], items[1::2]):
             existed_score = scores.get(member)
             if existed_score is not None:
                 if nx is not None or (existed_score == score and incr is None):
@@ -113,7 +113,7 @@ class BisectStorageEngine(BaseStorageEngine):
     def zrangebyscore(self, key, score_min, score_max, withscores=None):
         data = self._data[key]
         start = bisect_left(data, (score_min,))
-        stop = bisect_right(data, (score_max,))
+        stop = bisect_right(data, (score_max,)) + 1  # inclusive ranges
 
         if withscores is None:
             return [i[1] for i in data[start:stop]]
