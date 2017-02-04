@@ -1,4 +1,9 @@
+import logging
+
 from squash.parser import parse_command
+
+
+logger = logging.getLogger(__name__)
 
 PREFIX_STRING = '+'
 PREFIX_ERROR = '-'
@@ -15,19 +20,18 @@ BYTE_PREFIX_BULK_STRING = PREFIX_BULK_STRING.encode()[0]
 _converters = {
     tuple: lambda val: encode_array(val),
     list: lambda val: encode_array(val),
-    int: lambda val: (':', val, '\r\n'),
-    str: lambda val: ('$', val, '\r\n'),
+    int: lambda val: (':', str(val), '\r\n'),
+    str: lambda val: ('$', str(len(val)), '\r\n',  val, '\r\n'),
 }
 
 
 def encode_array(arr):
-    parts = []
-    parts.extend((PREFIX_ARRAY, len(arr), '\r\n'))
+    parts = [PREFIX_ARRAY, str(len(arr)), '\r\n']
     for item in arr:
         tp = type(item) if type(item) in _converters else str
         res = _converters[tp](item)
         parts.extend(res)
-    return ''.join(arr)
+    return parts
 
 
 class Connection:
@@ -69,7 +73,7 @@ class Connection:
         await self._write("{}{}\r\n".format(PREFIX_ERROR, message))
 
     async def write_array(self, arr):
-        result = encode_array(arr)
+        result = ''.join(encode_array(arr))
         await self._write(result)
 
     async def _write(self, data):

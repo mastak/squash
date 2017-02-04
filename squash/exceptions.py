@@ -3,12 +3,7 @@ class BaseError(Exception):
         self.message = message
 
 
-class InvalidCommand(Exception):
-    def __init__(self, cmd):
-        super().__init__("Invalid command {}".format(cmd))
-
-
-class InvalidArguments(Exception):
+class InvalidArguments(BaseError):
     def __init__(self, cmd, args):
         super().__init__("Invalid arguments {} for command {}"
                          "".format(args, cmd))

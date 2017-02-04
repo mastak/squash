@@ -1,7 +1,7 @@
 import logging
 
 
-from squash.exceptions import InvalidCommand, InvalidArguments, BaseError
+from squash.exceptions import InvalidArguments, BaseError
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,8 @@ class CommandHandler:
     ZRANGE <key> <start> <stop> (https://redis.io/commands/zrange)
     ZRANGEBYSCORE <key> <min> <max> (https://redis.io/commands/zrangebyscore)
     """
-    VALID_COMMANDS = ('ZADD', 'ZCARD', 'ZREM', 'ZRANGE', 'ZRANGEBYSCORE')
+    VALID_COMMANDS = ('ZADD', 'ZCARD', 'ZREM', 'ZRANGE', 'ZRANGEBYSCORE',
+                      'COMMAND')
 
     def __init__(self, connection, storage):
         self._connection = connection
@@ -29,15 +30,22 @@ class CommandHandler:
             logger.debug("RECEIVED DATA: {}".format(data))
             await self.handle_command(*data)
 
-    async def handle_command(self, cmd, key, *args):
+    async def handle_command(self, cmd, key=None, *args):
+        cmd = cmd.upper()
         if cmd not in self.VALID_COMMANDS:
-            raise InvalidCommand(cmd)
+            await self._connection.write_error("Invalid command {}".format(cmd))
+            return
 
         try:
             await getattr(self, cmd)(key, *args)
+        except BaseError as error:
+            await self._connection.write_error(error.message)
         except Exception as error:
             logger.exception(error)
             await self._connection.write_error("SERVER ERROR")
+
+    async def COMMAND(self, *args):
+        await self._connection.write_string('OK')
 
     async def ZADD(self, key, *args):
         incr = nx = xx = ch = None
@@ -72,8 +80,8 @@ class CommandHandler:
         await self._connection.write_int(result)
 
     async def ZRANGE(self, key, start, stop, withscores=None):
-        result = self._storage.zrange(key, start, stop, withscores)
-        await self._connection.write_array(result)
+        result = self._storage.zrange(key, int(start), int(stop), withscores)
+        await self._connection.write_array(tuple(result))
 
     async def ZRANGEBYSCORE(self, key, score_min, score_max, withscores=None):
         # TODO:
@@ -83,4 +91,4 @@ class CommandHandler:
 
         result = self._storage.zrangebyscore(
             key, score_min, score_max, withscores)
-        await self._connection.write_array(result)
+        await self._connection.write_array(tuple(result))

@@ -1,8 +1,12 @@
+import logging
 from bisect import insort, bisect_left, bisect_right
 from collections import defaultdict
+from itertools import chain
 
 from .base import BaseStorageEngine
 from squash.exceptions import BaseError
+
+logger = logging.getLogger(__name__)
 
 
 class BisectStorageEngine(BaseStorageEngine):
@@ -37,6 +41,7 @@ class BisectStorageEngine(BaseStorageEngine):
             the new score of member (a double precision floating point number),
             represented as string.
         """
+        logger.debug("nx {}, xx {}, ch {}, incr {}".format(nx, xx, ch, incr))
         if nx and xx:
             raise BaseError(
                 "XX and NX options at the same time are not compatible")
@@ -52,7 +57,7 @@ class BisectStorageEngine(BaseStorageEngine):
         for score, member in items:
             existed_score = scores.get(member)
             if existed_score is not None:
-                if nx is not None or existed_score == score:
+                if nx is not None or (existed_score == score and incr is None):
                     continue
 
                 index = bisect_left(data, (existed_score, member))
@@ -69,6 +74,7 @@ class BisectStorageEngine(BaseStorageEngine):
             insort(data, (score, member))
             scores[member] = score
 
+        logger.debug("saved {}, update {}".format(saved, updated))
         return saved if ch is None else saved + updated
 
 
@@ -100,7 +106,9 @@ class BisectStorageEngine(BaseStorageEngine):
         stop += 1  # inclusive ranges
         if withscores is None:
             return (i[1] for i in self._data[key][start:stop])
-        return ((i[1], i[0]) for i in self._data[key][start:stop])
+
+        result = ((i[1], i[0]) for i in self._data[key][start:stop])
+        return chain.from_iterable(result)
 
     def zrangebyscore(self, key, score_min, score_max, withscores=None):
         data = self._data[key]
@@ -108,8 +116,8 @@ class BisectStorageEngine(BaseStorageEngine):
         stop = bisect_right(data, (score_max,))
 
         if withscores is None:
-            return (i[1] for i in data[start:stop])
-        return ((i[1], i[0]) for i in data[start:stop])
+            return [i[1] for i in data[start:stop]]
+        return chain.from_iterable((i[1], i[0]) for i in data[start:stop])
 
 
 def bisect_storage_factory():

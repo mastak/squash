@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from asyncio.streams import start_server
 
 from squash.connection import Connection
@@ -42,6 +43,8 @@ class SquashServer:
 
 
 def main():
+    logging.basicConfig(level=logging.DEBUG)
+
     host, port = '192.168.1.156', '6379'
 
     loop = asyncio.get_event_loop()
