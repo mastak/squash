@@ -16,9 +16,9 @@ class BaseStorageEngine:
     def zrem(self, key, member):
         raise NotImplementedError
 
-    def zrange(self, key, start, stop):
+    def zrange(self, key, start, stop, withscores=None):
         raise NotImplementedError
 
-    def zrangebyscore(self, key, min, max):
+    def zrangebyscore(self, key, score_min, score_max, withscores=None):
         raise NotImplementedError
 

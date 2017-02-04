@@ -1,7 +1,7 @@
 import logging
 
 
-from squash.exceptions import InvalidCommand
+from squash.exceptions import InvalidCommand, InvalidArguments, BaseError
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,28 @@ class CommandHandler:
             await self._connection.write_error("SERVER ERROR")
 
     async def ZADD(self, key, *args):
-        pass
+        incr = nx = xx = ch = None
+
+        start_idx = 0
+        for i in args:
+            if i.lower() == 'incr':
+                incr = True
+            elif i.lower() == 'nx':
+                nx = True
+            elif i.lower() == 'xx':
+                xx = True
+            elif i.lower() == 'ch':
+                ch = True
+            else:
+                break
+            start_idx += 1
+
+        el_count = len(args) - start_idx
+        if el_count % 2 or not el_count:
+            raise InvalidArguments('zadd', args)
+
+        result = self._storage.zadd(key, nx, xx, ch, incr, args[start_idx:])
+        await self._connection.write_string(result)
 
     async def ZCARD(self, key):
         result = self._storage.zcard(key)

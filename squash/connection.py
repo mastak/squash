@@ -1,8 +1,15 @@
 from squash.parser import parse_command
 
-FIRST_BYTE_INT = b':'[0]
-FIRST_BYTE_ARRAY = b'*'[0]
-FIRST_BYTE_BULK_STR = b'$'[0]
+PREFIX_STRING = '+'
+PREFIX_ERROR = '-'
+PREFIX_INT = ':'
+PREFIX_ARRAY = '*'
+PREFIX_BULK_STRING = '$'
+
+
+BYTE_PREFIX_INT = PREFIX_INT.encode()[0]
+BYTE_PREFIX_ARRAY = PREFIX_ARRAY.encode()[0]
+BYTE_PREFIX_BULK_STRING = PREFIX_BULK_STRING.encode()[0]
 
 
 _converters = {
@@ -10,15 +17,14 @@ _converters = {
     list: lambda val: encode_array(val),
     int: lambda val: (':', val, '\r\n'),
     str: lambda val: ('$', val, '\r\n'),
-    'default': lambda val: ('$', val, '\r\n'),
 }
 
 
 def encode_array(arr):
     parts = []
-    parts.extend(('*', len(arr), '\r\n'))
+    parts.extend((PREFIX_ARRAY, len(arr), '\r\n'))
     for item in arr:
-        tp = type(item) if type(item) in _converters else 'default'
+        tp = type(item) if type(item) in _converters else str
         res = _converters[tp](item)
         parts.extend(res)
     return ''.join(arr)
@@ -37,11 +43,11 @@ class Connection:
 
         int_val = int(line[1:])
 
-        if line[0] == FIRST_BYTE_ARRAY:
+        if line[0] == BYTE_PREFIX_ARRAY:
             return await self.read_array(int_val)
-        if line[0] == FIRST_BYTE_BULK_STR:
+        if line[0] == BYTE_PREFIX_BULK_STRING:
             return await self.read_bulk_string(int_val)
-        if line[0] == FIRST_BYTE_INT:
+        if line[0] == BYTE_PREFIX_INT:
             return int_val
 
         await self.write_error("Invalid data")
@@ -54,14 +60,17 @@ class Connection:
         return line.decode("utf-8")[:str_len]
 
     async def write_int(self, value):
-        self._write(":{}\r\n".format(value))
+        await self._write("{}{}\r\n".format(PREFIX_INT, value))
+
+    async def write_string(self, value):
+        await self._write("{}{}\r\n".format(PREFIX_STRING, value))
 
     async def write_error(self, message):
-        self._write("-{}\r\n".format(message))
+        await self._write("{}{}\r\n".format(PREFIX_ERROR, message))
 
     async def write_array(self, arr):
         result = encode_array(arr)
-        self._write(result)
+        await self._write(result)
 
     async def _write(self, data):
         self._client_writer.write(data.encode())
